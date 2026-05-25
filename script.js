@@ -1,188 +1,262 @@
-// State Management
-let habits = JSON.parse(localStorage.getItem('habits')) || [];
-let currentWeekOffset = 0; // 0 means current week, -1 previous week, etc.
+// State management
+let habits = [];
+let currentDate = new Date();
 
-// DOM Elements
-const habitForm = document.getElementById('habit-form');
-const habitInput = document.getElementById('habit-input');
-const tableHeader = document.getElementById('table-header');
-const tableBody = document.getElementById('table-body');
-const emptyState = document.getElementById('empty-state');
-const prevWeekBtn = document.getElementById('prev-week');
-const nextWeekBtn = document.getElementById('next-week');
-const thisWeekBtn = document.getElementById('this-week');
+// LocalStorage keys
+const STORAGE_KEY = 'habitTrackerData';
 
-// Helper: Get dates of the week based on offset (Starts on Monday)
-function getWeekDates(offset = 0) {
+// Initialize on page load
+document.addEventListener('DOMContentLoaded', () => {
+  loadData();
+  setupEventListeners();
+  render();
+});
+
+// Load data from localStorage
+function loadData() {
+  const stored = localStorage.getItem(STORAGE_KEY);
+  if (stored) {
+    habits = JSON.parse(stored);
+  }
+}
+
+// Save data to localStorage
+function saveData() {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(habits));
+}
+
+// Setup event listeners
+function setupEventListeners() {
+  document.getElementById('addHabitForm').addEventListener('submit', handleAddHabit);
+  document.getElementById('prevWeek').addEventListener('click', () => changeWeek(-1));
+  document.getElementById('nextWeek').addEventListener('click', () => changeWeek(1));
+  document.getElementById('todayBtn').addEventListener('click', goToToday);
+}
+
+// Handle adding a new habit
+function handleAddHabit(e) {
+  e.preventDefault();
+  const input = document.getElementById('habitInput');
+  const name = input.value.trim();
+
+  if (name === '') return;
+
+  const habit = {
+    id: Date.now(),
+    name: name,
+    createdDate: new Date().toISOString(),
+    completions: {} // { 'YYYY-MM-DD': true/false }
+  };
+
+  habits.push(habit);
+  saveData();
+  input.value = '';
+  render();
+}
+
+// Handle deleting a habit
+function deleteHabit(id) {
+  if (confirm('Delete this habit?')) {
+    habits = habits.filter(h => h.id !== id);
+    saveData();
+    render();
+  }
+}
+
+// Handle toggling a completion
+function toggleCompletion(habitId, dateStr) {
+  const habit = habits.find(h => h.id === habitId);
+  if (habit) {
+    if (habit.completions[dateStr]) {
+      delete habit.completions[dateStr];
+    } else {
+      habit.completions[dateStr] = true;
+    }
+    saveData();
+    render();
+  }
+}
+
+// Navigate weeks
+function changeWeek(offset) {
+  currentDate.setDate(currentDate.getDate() + offset * 7);
+  render();
+}
+
+// Go back to today
+function goToToday() {
+  currentDate = new Date();
+  render();
+}
+
+// Get the start of the week (Monday)
+function getWeekStart(date) {
+  const d = new Date(date);
+  const day = d.getDay();
+  const diff = d.getDate() - day + (day === 0 ? -6 : 1); // Adjust when day is Sunday
+  return new Date(d.setDate(diff));
+}
+
+// Format date as YYYY-MM-DD
+function formatDate(date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+// Get an array of 7 dates starting from Monday
+function getWeekDates(startDate) {
   const dates = [];
-  const today = new Date();
-  
-  // Calculate current Monday
-  const dayOfWeek = today.getDay(); 
-  const distanceToMonday = dayOfWeek === 0 ? -6 : 1 - dayOfWeek; // Handle Sunday (0)
-  
-  const monday = new Date(today);
-  monday.setDate(today.getDate() + distanceToMonday + (offset * 7));
-  
   for (let i = 0; i < 7; i++) {
-    const nextDay = new Date(monday);
-    nextDay.setDate(monday.getDate() + i);
-    dates.push(nextDay);
+    const d = new Date(startDate);
+    d.setDate(d.getDate() + i);
+    dates.push(d);
   }
   return dates;
 }
 
-// Format date to YYYY-MM-DD string for storage key consistency
-function formatDateKey(date) {
-  return date.toISOString().split('T')[0];
-}
-
-// Calculate Current Consecutive Streak
+// Calculate streak for a habit
 function calculateStreak(habit) {
-  const today = new Date();
   let streak = 0;
+  const today = new Date();
   let checkDate = new Date(today);
 
-  // Check if today is completed
-  const todayKey = formatDateKey(checkDate);
-  const completedToday = habit.history && habit.history[todayKey];
-
-  // If today isn't checked, see if yesterday was checked to preserve ongoing streak
-  if (!completedToday) {
-    checkDate.setDate(checkDate.getDate() - 1);
-  }
-
-  // Count backwards
+  // Check backwards from today
   while (true) {
-    const key = formatDateKey(checkDate);
-    if (habit.history && habit.history[key]) {
+    const dateStr = formatDate(checkDate);
+    if (habit.completions[dateStr]) {
       streak++;
       checkDate.setDate(checkDate.getDate() - 1);
     } else {
       break;
     }
   }
+
   return streak;
 }
 
-// Save to LocalStorage
-function saveState() {
-  localStorage.setItem('habits', JSON.stringify(habits));
-}
+// Get display text for the week
+function getWeekDisplay() {
+  const weekStart = getWeekStart(currentDate);
+  const weekEnd = new Date(weekStart);
+  weekEnd.setDate(weekEnd.getDate() + 6);
 
-// Render the UI Grid
-function render() {
-  const weekDates = getWeekDates(currentWeekOffset);
-  const todayKey = formatDateKey(new Date());
+  const today = new Date();
+  const isCurrentWeek =
+    formatDate(today) >= formatDate(weekStart) &&
+    formatDate(today) <= formatDate(weekEnd);
 
-  // 1. Render Table Header
-  let headerHtml = '<th>Habit Name</th>';
-  weekDates.forEach(date => {
-    const isToday = formatDateKey(date) === todayKey;
-    const dayName = date.toLocaleDateString('en-US', { weekday: 'short' });
-    const dayNum = date.getDate();
-    headerHtml += `<th class="${isToday ? 'today-col' : ''}">${dayName} ${dayNum}</th>`;
-  });
-  headerHtml += '<th>Actions</th>';
-  tableHeader.innerHTML = headerHtml;
-
-  // 2. Render Table Body / Empty State Check
-  if (habits.length === 0) {
-    emptyState.classList.remove('hidden');
-    tableBody.innerHTML = '';
-    return;
-  } else {
-    emptyState.classList.add('hidden');
+  if (isCurrentWeek) {
+    return 'This Week';
   }
 
-  let bodyHtml = '';
-  habits.forEach((habit, habitIndex) => {
-    const streak = calculateStreak(habit);
-    bodyHtml += `<tr>`;
-    bodyHtml += `<td class="habit-name-cell">${habit.name} <span class="streak-badge">🔥 ${streak}</span></td>`;
-    
-    // Render 7 day checkboxes
+  const diff = Math.floor((weekStart - today) / (1000 * 60 * 60 * 24 * 7));
+  if (diff === -1) return 'Last Week';
+  if (diff === 1) return 'Next Week';
+
+  const month = weekStart.toLocaleString('en-US', { month: 'short' });
+  const day = weekStart.getDate();
+  return `${month} ${day}`;
+}
+
+// Render the entire app
+function render() {
+  const emptyState = document.getElementById('emptyState');
+  const trackerSection = document.getElementById('trackerSection');
+
+  // Show/hide empty state
+  if (habits.length === 0) {
+    emptyState.style.display = 'block';
+    trackerSection.style.display = 'none';
+  } else {
+    emptyState.style.display = 'none';
+    trackerSection.style.display = 'block';
+    renderTracker();
+  }
+}
+
+// Render the tracker grid
+function renderTracker() {
+  const weekStart = getWeekStart(currentDate);
+  const weekDates = getWeekDates(weekStart);
+  const today = new Date();
+  const todayStr = formatDate(today);
+
+  // Render day headers
+  const dayHeadersContainer = document.getElementById('dayHeaders');
+  dayHeadersContainer.innerHTML = '';
+  
+  weekDates.forEach(date => {
+    const dateStr = formatDate(date);
+    const isToday = dateStr === todayStr;
+    const dayName = date.toLocaleString('en-US', { weekday: 'short' });
+    const dayDate = date.getDate();
+
+    const headerDiv = document.createElement('div');
+    headerDiv.className = `day-header ${isToday ? 'today' : ''}`;
+    headerDiv.innerHTML = `
+      <span class="day-name">${dayName}</span>
+      <span class="date">${dayDate}</span>
+    `;
+    dayHeadersContainer.appendChild(headerDiv);
+  });
+
+  // Update week display
+  document.getElementById('weekDisplay').textContent = getWeekDisplay();
+
+  // Render habits
+  const habitsList = document.getElementById('habitsList');
+  habitsList.innerHTML = '';
+
+  habits.forEach(habit => {
+    const row = document.createElement('div');
+    row.className = 'habit-row';
+
+    // Habit name with delete button
+    const nameCell = document.createElement('div');
+    nameCell.className = 'habit-name';
+    nameCell.innerHTML = `
+      <span class="habit-name-text">${escapeHtml(habit.name)}</span>
+      <button class="delete-btn" aria-label="Delete ${habit.name}" onclick="deleteHabit(${habit.id})">×</button>
+    `;
+
+    row.appendChild(nameCell);
+
+    // Checkboxes for each day
     weekDates.forEach(date => {
-      const dateKey = formatDateKey(date);
-      const isChecked = habit.history && habit.history[dateKey] ? 'checked' : '';
-      const isToday = dateKey === todayKey;
-      
-      bodyHtml += `
-        <td class="${isToday ? 'today-col' : ''}">
-          <label class="checkbox-container">
-            <input type="checkbox" data-habit="${habitIndex}" data-date="${dateKey}" ${isChecked}>
-            <span class="checkmark"></span>
-          </label>
-        </td>
-      `;
+      const dateStr = formatDate(date);
+      const isToday = dateStr === todayStr;
+      const isCompleted = habit.completions[dateStr] || false;
+
+      const cellDiv = document.createElement('div');
+      cellDiv.className = `checkbox-cell ${isToday ? 'today' : ''}`;
+
+      const checkbox = document.createElement('input');
+      checkbox.type = 'checkbox';
+      checkbox.checked = isCompleted;
+      checkbox.setAttribute('aria-label', `${habit.name} on ${date.toDateString()}`);
+      checkbox.addEventListener('change', () => toggleCompletion(habit.id, dateStr));
+
+      cellDiv.appendChild(checkbox);
+      row.appendChild(cellDiv);
     });
 
-    bodyHtml += `<td><button class="btn-delete" data-index="${habitIndex}">Delete</button></td>`;
-    bodyHtml += `</tr>`;
+    // Streak counter
+    const streakCell = document.createElement('div');
+    const streak = calculateStreak(habit);
+    streakCell.className = `streak-display ${streak > 0 ? 'active' : ''}`;
+    streakCell.textContent = `${streak}🔥`;
+    streakCell.setAttribute('aria-label', `${streak} day streak`);
+
+    row.appendChild(streakCell);
+    habitsList.appendChild(row);
   });
-  
-  tableBody.innerHTML = bodyHtml;
 }
 
-// Event Listeners
-habitForm.addEventListener('submit', (e) => {
-  e.preventDefault();
-  const name = habitInput.value.trim();
-  if (!name) return;
-
-  habits.push({
-    name: name,
-    history: {} // Store format: { "2026-05-21": true }
-  });
-
-  habitInput.value = '';
-  saveState();
-  render();
-});
-
-tableBody.addEventListener('change', (e) => {
-  if (e.target.matches('input[type="checkbox"]')) {
-    const habitIndex = e.target.dataset.habit;
-    const dateKey = e.target.dataset.date;
-    
-    if (!habits[habitIndex].history) {
-      habits[habitIndex].history = {};
-    }
-    
-    if (e.target.checked) {
-      habits[habitIndex].history[dateKey] = true;
-    } else {
-      delete habits[habitIndex].history[dateKey];
-    }
-    
-    saveState();
-    render(); // Rerender to instantly update streak badges smoothly
-  }
-});
-
-tableBody.addEventListener('click', (e) => {
-  if (e.target.matches('.btn-delete')) {
-    const index = e.target.dataset.index;
-    if (confirm('Are you sure you want to delete this habit?')) {
-      habits.splice(index, 1);
-      saveState();
-      render();
-    }
-  }
-});
-
-// Week Navigation Setup
-prevWeekBtn.addEventListener('click', () => { currentWeekOffset--; render(); updateWeekHighlight(); });
-nextWeekBtn.addEventListener('click', () => { currentWeekOffset++; render(); updateWeekHighlight(); });
-thisWeekBtn.addEventListener('click', () => { currentWeekOffset = 0; render(); updateWeekHighlight(); });
-
-function updateWeekHighlight() {
-  if (currentWeekOffset === 0) {
-    thisWeekBtn.classList.add('active-week');
-  } else {
-    thisWeekBtn.classList.remove('active-week');
-  }
+// Escape HTML to prevent XSS
+function escapeHtml(text) {
+  const div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
 }
-
-// Initial Kickoff
-render();
