@@ -3,52 +3,63 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>StreakFlow — Minimal Habit Tracker</title>
-  <link rel="stylesheet" href="styles.css">
+  <title>Habit Tracker</title>
+  <link rel="stylesheet" href="style.css">
 </head>
 <body>
+  <div class="container">
+    <header>
+      <h1>Habit Tracker</h1>
+      <p class="subtitle">Build your streaks, one day at a time</p>
+    </header>
 
-  <header>
-    <h1>StreakFlow</h1>
-    <p class="subtitle">Track your daily habits and build consistent streaks.</p>
-  </header>
-
-  <main class="container">
-    <!-- Controls & Week Navigation -->
-    <div class="controls-wrapper">
-      <form id="habit-form">
-        <input type="text" id="habit-input" placeholder="New habit (e.g., Read 30 mins, Exercise)" required aria-label="New habit name">
-        <button type="submit" class="btn-primary">Add Habit</button>
+    <!-- Add Habit Form -->
+    <section class="add-habit-section">
+      <form id="addHabitForm" class="habit-form">
+        <input 
+          type="text" 
+          id="habitInput" 
+          placeholder="Add a new habit (e.g., Read 30 min)" 
+          maxlength="30"
+          required
+        >
+        <button type="submit">Add Habit</button>
       </form>
+    </section>
 
-      <div class="nav-controls">
-        <button id="prev-week" class="btn-secondary" aria-label="Previous week">← Prev</button>
-        <button id="this-week" class="btn-secondary active-week">Today</button>
-        <button id="next-week" class="btn-secondary" aria-label="Next week">Next →</button>
-      </div>
+    <!-- Empty State -->
+    <div id="emptyState" class="empty-state">
+      <div class="empty-icon">📝</div>
+      <h2>No habits yet</h2>
+      <p>Start building better habits. Add one above!</p>
     </div>
 
-    <!-- Main Grid Container -->
-    <div class="grid-card">
-      <div class="table-responsive">
-        <table id="habit-table">
-          <thead>
-            <tr id="table-header">
-              <!-- Dynamically populated -->
-            </tr>
-          </thead>
-          <tbody id="table-body">
-            <!-- Dynamically populated -->
-          </tbody>
-        </table>
+    <!-- Week Navigation -->
+    <div id="trackerSection" class="tracker-section" style="display: none;">
+      <div class="week-nav">
+        <button id="prevWeek" class="week-btn">← Previous</button>
+        <div class="week-info">
+          <span id="weekDisplay">This Week</span>
+          <button id="todayBtn" class="today-btn">Today</button>
+        </div>
+        <button id="nextWeek" class="week-btn">Next →</button>
       </div>
-      
-      <!-- Empty State -->
-      <div id="empty-state" class="empty-state hidden">
-        <p>No habits added yet. Type a habit above to get started!</p>
+
+      <!-- Tracker Grid -->
+      <div class="tracker">
+        <div class="grid-header">
+          <div class="habit-column-header">Habit</div>
+          <div id="dayHeaders" class="day-headers">
+            <!-- Day headers injected by JS -->
+          </div>
+          <div class="streak-column-header">Streak</div>
+        </div>
+        <div id="habitsList" class="habits-list">
+          <!-- Habits and checkboxes injected by JS -->
+        </div>
       </div>
     </div>
-  </main>
+  </div>
 
   <script src="script.js"></script>
 </body>
